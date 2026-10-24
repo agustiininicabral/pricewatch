@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>PriceWatch — seguimiento de precios</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script type="module" src="/assets/app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="PriceWatch, inicio">
+        <span class="brand-mark" aria-hidden="true">P</span>
+        <span>Price<span class="brand-accent">Watch</span></span>
+      </a>
+      <div class="topbar-actions">
+        <span id="api-status" class="api-status" role="status">Conectando a la API…</span>
+        <button id="refresh-button" class="button button-quiet" type="button">Actualizar panel</button>
+      </div>
+    </header>
+
+    <main class="page">
+      <section class="intro">
+        <div>
+          <p class="eyebrow">Seguimiento local</p>
+          <h1>Tus precios, en un solo lugar</h1>
+          <p class="intro-copy">Organizá publicaciones, revisá su historial y compará solo datos verificables.</p>
+        </div>
+        <div class="local-badge"><span aria-hidden="true"></span> Solo en este equipo</div>
+      </section>
+
+      <div id="global-message" class="message" role="status" hidden></div>
+
+      <aside class="integration-notice">
+        <span class="notice-icon" aria-hidden="true">i</span>
+        <p><strong>Integraciones de tiendas pendientes.</strong> PriceWatch no consulta páginas reales todavía. Las URLs se guardan sin inventar precios; una actualización manual puede finalizar con la fuente no configurada.</p>
+      </aside>
+
+      <section class="summary-grid" aria-label="Resumen">
+        <article class="summary-card">
+          <span class="summary-label">Productos activos</span>
+          <strong id="product-count" class="summary-value">—</strong>
+          <span class="summary-note">en seguimiento</span>
+        </article>
+        <article class="summary-card">
+          <span class="summary-label">Publicaciones</span>
+          <strong id="listing-count" class="summary-value">—</strong>
+          <span class="summary-note">URLs registradas</span>
+        </article>
+        <article class="summary-card">
+          <span class="summary-label">Última consulta</span>
+          <strong id="last-update" class="summary-value summary-value-small">Sin ejecuciones</strong>
+          <span id="last-update-note" class="summary-note">Las fechas se muestran en hora argentina</span>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <section class="panel products-panel" aria-labelledby="products-heading">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Tu seguimiento</p>
+              <h2 id="products-heading">Productos</h2>
+            </div>
+            <label class="search-control">
+              <span class="sr-only">Buscar productos</span>
+              <input id="search-input" type="search" placeholder="Buscar producto…" autocomplete="off">
+            </label>
+          </div>
+          <div id="products-loading" class="loading-state">Cargando productos…</div>
+          <div id="products-empty" class="empty-state" hidden>
+            <span class="empty-icon" aria-hidden="true">⌕</span>
+            <h3>Todavía no seguís productos</h3>
+            <p>Agregá un producto y una URL para empezar. La publicación quedará pendiente hasta que haya una fuente autorizada.</p>
+          </div>
+          <div class="table-scroll">
+            <table id="products-table">
+              <thead>
+                <tr>
+                  <th scope="col">Producto</th>
+                  <th scope="col">Publicaciones</th>
+                  <th scope="col">Último dato</th>
+                  <th scope="col">Estado</th>
+                  <th scope="col"><span class="sr-only">Acciones</span></th>
+                </tr>
+              </thead>
+              <tbody id="products-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside class="panel form-panel" aria-labelledby="add-heading">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Empezar a seguir</p>
+              <h2 id="add-heading">Agregar producto</h2>
+            </div>
+          </div>
+          <form id="add-form">
+            <label for="product-mode">Acción</label>
+            <select id="product-mode" name="product_mode">
+              <option value="new">Crear producto nuevo</option>
+              <option value="existing">Agregar publicación a un producto seguido</option>
+            </select>
+
+            <div id="new-product-fields">
+              <label for="product-name">Nombre del producto</label>
+              <input id="product-name" name="name" required maxlength="240" placeholder="Ej.: Auriculares modelo X">
+
+              <label for="canonical-key">Clave de producto</label>
+              <input id="canonical-key" name="canonical_key" required maxlength="160" placeholder="auriculares-modelo-x">
+              <span class="field-help">Identifica el producto para organizar sus publicaciones.</span>
+            </div>
+
+            <div id="existing-product-fields" hidden>
+              <label for="existing-product-id">Producto seguido</label>
+              <select id="existing-product-id" name="existing_product_id"></select>
+            </div>
+
+            <label for="store-name">Nombre de la tienda</label>
+            <input id="store-name" name="store_name" required maxlength="120" placeholder="Ej.: Tienda observada">
+
+            <label for="source-url">URL de la publicación</label>
+            <input id="source-url" name="source_url" type="url" required maxlength="2048" placeholder="https://tienda.example/producto">
+
+            <label for="listing-title">Título de la publicación <span class="optional">(opcional)</span></label>
+            <input id="listing-title" name="title" maxlength="500" placeholder="Si lo conocés">
+
+            <p class="form-footnote">Guardar una URL no consulta la tienda ni crea un precio. Las compras, si decidís realizarlas, se hacen manualmente en el sitio original.</p>
+            <button id="submit-button" class="button button-primary button-wide" type="submit">Agregar al seguimiento</button>
+            <p id="form-message" class="form-message" role="status" hidden></p>
+          </form>
+        </aside>
+      </section>
+
+      <section id="detail-panel" class="panel detail-panel" aria-labelledby="detail-heading" hidden>
+        <div class="panel-heading detail-heading">
+          <div>
+            <p class="eyebrow">Producto seleccionado</p>
+            <h2 id="detail-heading">Detalle</h2>
+            <p id="detail-summary" class="detail-summary"></p>
+          </div>
+          <button id="close-detail" class="button button-quiet" type="button">Cerrar detalle</button>
+        </div>
+        <div id="detail-loading" class="loading-state" hidden>Cargando historial y comparación…</div>
+        <div id="detail-content"></div>
+      </section>
+
+      <footer class="page-footer">
+        <span>PriceWatch funciona localmente en tu equipo.</span>
+        <a href="/docs" target="_blank" rel="noopener noreferrer">Documentación de la API</a>
+      </footer>
+    </main>
+    <div id="confirm-dialog" class="dialog-backdrop" hidden>
+      <section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description">
+        <h2 id="confirm-title">Desactivar producto</h2>
+        <p id="confirm-description">El producto dejará de aparecer en el panel. Su historial se conserva.</p>
+        <div class="dialog-actions">
+          <button id="cancel-deactivate" class="button button-quiet" type="button">Cancelar</button>
+          <button id="confirm-deactivate" class="button button-danger" type="button">Desactivar</button>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>

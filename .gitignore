@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.venv/
+.venv*/
+venv/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+.envrc
+.secrets/
+secrets.*
+*_secrets.*
+*.pem
+*.key
+
+# Local database files
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+
+# Browser sessions and generated artifacts
+playwright/.auth/
+storage-state*.json
+*.log
+.coverage
+.coverage.*
+htmlcov/
+build/
+*.egg-info/
+dist/
+node_modules/
+coverage/
+Thumbs.db
+.DS_Store
