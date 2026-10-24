@@ -39,7 +39,7 @@ El servidor se enlaza solo a `127.0.0.1` (puerto 8000 por defecto). `PRICEWATCH_
 
 Errores comunes: `404` para recursos inexistentes, `409` para claves/publicaciones en conflicto, `422` para entradas inválidas y `503` si falla la consulta de salud a la base. Los errores de validación de FastAPI incluyen el detalle del campo rechazado.
 
-La página de PriceWatch está disponible en `http://127.0.0.1:8000/` y los recursos de la interfaz se sirven desde `/assets/` en el mismo origen. La interfaz puede crear un producto con su primera URL o añadir nuevas URLs a un producto seguido. La publicación y la tienda quedan pendientes y sin habilitar una integración; no se consulta la URL ni se inventan observaciones de precio. Si el registro de la primera URL falla después de crear el producto, la interfaz indica que el producto sí quedó creado.
+La página de PriceWatch está disponible en `http://127.0.0.1:8000/` y los recursos de la interfaz se sirven desde `/assets/` en el mismo origen. La interfaz puede crear un producto con su primera URL o añadir nuevas URLs a un producto seguido. La publicación y la tienda quedan pendientes y sin habilitar una integración; no se consulta la URL ni se inventan observaciones de precio. Desde el detalle se pueden registrar manualmente el precio observado y el envío. Solo los datos marcados como comprobados, con stock y envío conocido, pueden producir una ganadora. La búsqueda del panel filtra el catálogo local; no busca productos en sitios externos. Si el registro de la primera URL falla después de crear el producto, la interfaz indica que el producto sí quedó creado.
 
 ## Ejemplos PowerShell
 

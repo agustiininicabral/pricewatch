@@ -1,5 +1,10 @@
 import { api, ApiError } from "./api.js";
-import { createProductWithListing, waitForExecution } from "./actions.js";
+import {
+  amountToMinorUnits,
+  createProductWithListing,
+  storeSlugFromDomain,
+  waitForExecution,
+} from "./actions.js";
 
 const state = {
   products: [],
@@ -17,6 +22,7 @@ const elements = {
   lastUpdateNote: document.querySelector("#last-update-note"),
   loading: document.querySelector("#products-loading"),
   empty: document.querySelector("#products-empty"),
+  noResults: document.querySelector("#products-no-results"),
   table: document.querySelector("#products-table"),
   productsBody: document.querySelector("#products-body"),
   search: document.querySelector("#search-input"),
@@ -223,6 +229,7 @@ function renderProducts() {
     `${product.name} ${product.canonical_key} ${product.brand || ""}`
       .toLocaleLowerCase("es-AR").includes(search),
   );
+  elements.noResults.hidden = state.products.length === 0 || visibleProducts.length > 0;
   elements.productsBody.innerHTML = visibleProducts.map((product) => {
     const summary = state.summaries.get(product.id) || { listings: [], latest: new Map() };
     const latestObservation = [...summary.latest.values()]
@@ -351,10 +358,64 @@ function renderListings(listings, history, comparison) {
     </tr>`;
   }).join("");
 
+  const manualEntryForms = listings.map((listing) => {
+    const observation = latest.get(listing.id);
+    const currency = observation?.currency || "ARS";
+    const product = state.products.find((item) => item.id === listing.product_id);
+    const title = listing.title || observation?.title || product?.name || "";
+    return `<details class="manual-entry">
+      <summary>Ingresar precio y envío manualmente · ${escapeHtml(listing.store_name)}</summary>
+      <p class="field-help">Copiá los datos que observaste en la publicación. No se consulta la tienda. Solo los datos marcados como comprobados participan de la comparación.</p>
+      <form class="manual-entry-form" data-action="manual-observation" data-listing-id="${listing.id}" data-product-id="${listing.product_id}">
+        <label>Título observado
+          <input name="title" required maxlength="500" value="${escapeAttribute(title)}" placeholder="Nombre del artículo">
+        </label>
+        <label>Precio
+          <input name="amount" type="text" inputmode="decimal" required placeholder="Ej.: 129999,99">
+        </label>
+        <label>Moneda (ISO)
+          <input name="currency" required maxlength="3" pattern="[A-Za-z]{3}" value="${escapeAttribute(currency)}" aria-label="Moneda del precio, por ejemplo ARS">
+        </label>
+        <label>Disponibilidad observada
+          <select name="availability" required>
+            <option value="">Seleccionar</option>
+            <option value="in_stock">Hay stock</option>
+            <option value="out_of_stock">Sin stock</option>
+            <option value="unknown">No pude confirmar</option>
+          </select>
+        </label>
+        <label class="manual-verified">
+          <input name="verified" type="checkbox">
+          Comprobé manualmente el precio, moneda y disponibilidad en esa publicación.
+        </label>
+        <button class="button button-primary" type="submit">Guardar precio observado</button>
+      </form>
+      <form class="manual-entry-form shipping-form" data-action="manual-shipping" data-listing-id="${listing.id}" data-product-id="${listing.product_id}">
+        <label>Envío
+          <select name="shipping_status" required>
+            <option value="unknown">No verificado</option>
+            <option value="free">Gratis confirmado</option>
+            <option value="paid">Tiene costo</option>
+          </select>
+        </label>
+        <label class="shipping-amount-fields" hidden>Importe del envío
+          <input name="shipping_amount" type="text" inputmode="decimal" placeholder="Ej.: 2500">
+        </label>
+        <label class="shipping-amount-fields" hidden>Moneda del envío
+          <input name="shipping_currency" required maxlength="3" pattern="[A-Za-z]{3}" value="${escapeAttribute(currency)}">
+        </label>
+        <label>Fuente del dato
+          <input name="shipping_source" required maxlength="120" value="Observado manualmente">
+        </label>
+        <button class="button button-quiet" type="submit">Guardar envío</button>
+      </form>
+    </details>`;
+  }).join("");
+
   return `<div class="table-scroll"><table class="listing-table">
     <thead><tr><th>Publicación</th><th>Precio</th><th>Dato</th><th>Envío</th><th>Costo total</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
-  </table></div>`;
+  </table></div>${manualEntryForms}`;
 }
 
 function renderComparison(comparison) {
@@ -506,6 +567,11 @@ function bindEvents() {
     loadDashboard();
   });
   elements.search.addEventListener("input", renderProducts);
+  document.querySelector("#clear-search").addEventListener("click", () => {
+    elements.search.value = "";
+    renderProducts();
+    elements.search.focus();
+  });
   document.querySelector("#close-detail").addEventListener("click", closeProductDetail);
   elements.productMode.addEventListener("change", updateProductFormMode);
   elements.form.elements.name.addEventListener("input", () => {
@@ -586,6 +652,79 @@ function bindEvents() {
   elements.detailContent.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-action='update-listing']");
     if (button) updateProduct(state.selectedProductId, Number(button.dataset.listingId), button);
+  });
+  elements.detailContent.addEventListener("change", (event) => {
+    if (event.target.matches("select[name='shipping_status']")) {
+      const form = event.target.closest("form");
+      const paid = event.target.value === "paid";
+      form.querySelectorAll(".shipping-amount-fields").forEach((field) => {
+        field.hidden = !paid;
+      });
+      form.elements.shipping_amount.required = paid;
+      form.elements.shipping_currency.required = paid;
+    }
+  });
+  elements.detailContent.addEventListener("submit", async (event) => {
+    const form = event.target.closest("form[data-action]");
+    if (!form) return;
+    event.preventDefault();
+    const button = form.querySelector("button[type='submit']");
+    button.disabled = true;
+    try {
+      const values = new FormData(form);
+      const productId = Number(form.dataset.productId);
+      const listingId = Number(form.dataset.listingId);
+      if (form.dataset.action === "manual-observation") {
+        const listing = state.summaries.get(productId)?.listings
+          .find((item) => item.id === listingId);
+        if (!listing) throw new Error("No se encontró la publicación seleccionada.");
+        const currency = values.get("currency").trim().toUpperCase();
+        await api.createObservation(productId, {
+          store_name: listing.store_name,
+          store_slug: await storeSlugFromDomain(listing.store_domain),
+          store_domain: listing.store_domain,
+          source_url: listing.url,
+          title: values.get("title").trim(),
+          amount_minor: amountToMinorUnits(values.get("amount"), currency),
+          currency,
+          availability: values.get("availability"),
+          extraction_method: "manual",
+          validation_status: values.get("verified") === "on" ? "verified" : "pending_review",
+        });
+        showGlobalMessage(
+          values.get("verified") === "on"
+            ? "Precio guardado como observado y comprobado manualmente."
+            : "Precio guardado pendiente de revisión; todavía no participa de la comparación.",
+          "success",
+        );
+      } else if (form.dataset.action === "manual-shipping") {
+        const status = values.get("shipping_status");
+        if (status !== "unknown" && !state.summaries.get(productId)?.latest.has(listingId)) {
+          throw new Error("Primero registrá un precio observado para indicar la moneda del envío.");
+        }
+        const quote = {
+          status: status === "unknown" ? "unknown" : "known",
+          amount_minor: status === "unknown"
+            ? null
+            : status === "free"
+              ? 0
+              : amountToMinorUnits(
+                values.get("shipping_amount"),
+                values.get("shipping_currency"),
+                { allowZero: true },
+              ),
+          currency: status === "unknown" ? null : values.get("shipping_currency").trim().toUpperCase(),
+          source: values.get("shipping_source").trim(),
+        };
+        await api.createShippingQuote(listingId, quote);
+        showGlobalMessage("Costo de envío guardado.", "success");
+      }
+      await loadDashboard();
+    } catch (error) {
+      showGlobalError(error);
+    } finally {
+      button.disabled = false;
+    }
   });
 
   document.querySelector("#cancel-deactivate").addEventListener("click", () => {

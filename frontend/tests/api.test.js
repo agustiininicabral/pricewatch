@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createProductWithListing, waitForExecution } from "../src/actions.js";
+import {
+  amountToMinorUnits,
+  createProductWithListing,
+  storeSlugFromDomain,
+  waitForExecution,
+} from "../src/actions.js";
+import { createHash } from "node:crypto";
 import { api, ApiError, requestJson } from "../src/api.js";
 
 function jsonResponse(payload, status = 200) {
@@ -79,6 +85,45 @@ test("existing product receives a second URL through the listing endpoint", asyn
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("manual observation and shipping use their API endpoints", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse({ id: requests.length }, 201);
+  };
+  try {
+    await api.createObservation(4, { amount_minor: 12_500 });
+    await api.createShippingQuote(42, { status: "known", amount_minor: 0 });
+    assert.equal(requests[0].url, "/api/products/4/observations");
+    assert.equal(requests[1].url, "/api/listings/42/shipping");
+    assert.equal(requests[0].options.method, "POST");
+    assert.equal(requests[1].options.method, "POST");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("manual money parsing respects currency precision without floating-point rounding", () => {
+  assert.equal(amountToMinorUnits("1234,56", "ARS"), 123456);
+  assert.equal(amountToMinorUnits("1250,5", "ars"), 125050);
+  assert.equal(amountToMinorUnits("1200", "JPY"), 1200);
+  assert.equal(amountToMinorUnits("0", "ARS", { allowZero: true }), 0);
+  assert.throws(() => amountToMinorUnits("1,234", "JPY"), /hasta 0 decimales/);
+  assert.throws(() => amountToMinorUnits("1.234,56", "ARS"), /sin separadores de miles/);
+  assert.throws(() => amountToMinorUnits("0", "ARS"), /mayor que cero/);
+});
+
+test("manual observation derives the same bounded store slug as the API", async () => {
+  assert.equal(await storeSlugFromDomain("shop.example.test"), "shop-example-test");
+  const domain = `${"a".repeat(60)}.${"b".repeat(30)}.test`;
+  const base = domain.replaceAll(".", "-");
+  const suffix = createHash("sha256").update(domain).digest("hex").slice(0, 12);
+  const expected = `${base.slice(0, 67).replace(/-+$/, "")}-${suffix}`;
+  assert.equal(await storeSlugFromDomain(domain), expected);
+  assert.equal(expected.length, 80);
 });
 
 test("listing API failure identifies the product that was already created", async () => {

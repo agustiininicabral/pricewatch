@@ -35,7 +35,7 @@
 
       <aside class="integration-notice">
         <span class="notice-icon" aria-hidden="true">i</span>
-        <p><strong>Integraciones de tiendas pendientes.</strong> PriceWatch no consulta páginas reales todavía. Las URLs se guardan sin inventar precios; una actualización manual puede finalizar con la fuente no configurada.</p>
+        <p><strong>Integraciones de tiendas pendientes.</strong> PriceWatch no consulta páginas reales todavía. Las URLs se guardan sin inventar precios; podés cargar precios y envíos observados manualmente desde el detalle. La búsqueda solo filtra los productos ya guardados.</p>
       </aside>
 
       <section class="summary-grid" aria-label="Resumen">
@@ -65,7 +65,7 @@
             </div>
             <label class="search-control">
               <span class="sr-only">Buscar productos</span>
-              <input id="search-input" type="search" placeholder="Buscar producto…" autocomplete="off">
+              <input id="search-input" type="search" placeholder="Filtrar productos guardados…" autocomplete="off">
             </label>
           </div>
           <div id="products-loading" class="loading-state">Cargando productos…</div>
@@ -73,6 +73,11 @@
             <span class="empty-icon" aria-hidden="true">⌕</span>
             <h3>Todavía no seguís productos</h3>
             <p>Agregá un producto y una URL para empezar. La publicación quedará pendiente hasta que haya una fuente autorizada.</p>
+          </div>
+          <div id="products-no-results" class="empty-state search-empty" hidden>
+            <h3>No se encontraron productos</h3>
+            <p>La búsqueda solo revisa los productos guardados en este equipo; no busca en tiendas.</p>
+            <button id="clear-search" class="button button-quiet" type="button">Limpiar búsqueda</button>
           </div>
           <div class="table-scroll">
             <table id="products-table">

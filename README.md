@@ -122,7 +122,7 @@ node --check frontend\src\actions.js
 1. Iniciá PriceWatch y abrí el panel local.
 2. Creá un producto con su primera URL o agregá más publicaciones a un producto existente.
 3. Las publicaciones nuevas quedan pendientes; registrar la URL **no** consulta la tienda.
-4. En el detalle se muestran las observaciones e historial persistidos. La comparación la calcula el backend y solo puede declarar ganadora con datos verificados, moneda coincidente y envío conocido.
+4. En el detalle, abrí **Ingresar precio y envío manualmente** para cada publicación y cargá los datos que observaste. Un precio solo participa en la comparación si marcás que lo comprobaste manualmente, hay stock confirmado y el envío está indicado como gratuito o con costo conocido. Los valores pendientes, sin stock o con envío desconocido no producen una ganadora.
 5. Una actualización manual consulta el estado de la ejecución hasta que finaliza. Si la fuente no está integrada, la UI muestra el fallo y preserva cualquier observación válida previa.
 6. El enlace original abre la tienda para que el usuario complete cualquier compra personalmente.
 

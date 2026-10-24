@@ -48,6 +48,10 @@ export const api = {
   listListings: (productId) => requestJson(`/products/${productId}/listings`),
   createListing: (productId, listing) =>
     requestJson(`/products/${productId}/listings`, jsonBody("POST", listing)),
+  createObservation: (productId, observation) =>
+    requestJson(`/products/${productId}/observations`, jsonBody("POST", observation)),
+  createShippingQuote: (listingId, quote) =>
+    requestJson(`/listings/${listingId}/shipping`, jsonBody("POST", quote)),
   history: (productId, listingId) => {
     const query = listingId ? `?listing_id=${encodeURIComponent(listingId)}` : "";
     return requestJson(`/products/${productId}/history${query}`);
