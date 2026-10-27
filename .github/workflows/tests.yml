@@ -31,6 +31,12 @@ jobs:
       - name: Check Python dependency consistency
         run: python -m pip check
 
+      - name: Verify database migrations from an empty SQLite database
+        working-directory: backend
+        env:
+          PRICEWATCH_DATABASE_URL: sqlite:///./migration-check.db
+        run: python -m alembic upgrade head
+
       - name: Compile Python source and tests
         run: python -m compileall -q backend/app backend/tests
 
