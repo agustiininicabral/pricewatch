@@ -547,7 +547,7 @@ def test_alert_rule_triggers_once_when_target_price_is_reached(client: TestClien
     assert len(client.get(f"/api/alerts/{rule['id']}/events").json()) == 1
 
 
-def test_alert_rule_triggers_on_reduction_and_ignores_invalid_observations(
+def test_alert_rule_triggers_on_reduction(
     client: TestClient,
 ) -> None:
     product = create_product(client)
@@ -587,3 +587,23 @@ def test_alert_rule_validates_configuration_and_missing_resources(
     assert client.post("/api/alerts/999/evaluate").status_code == 404
 
 
+
+ 
+def test_alert_rule_ignores_latest_observation_pending_review(client: TestClient) -> None:
+    product = create_product(client)
+    register_observation(client, product["id"], amount_minor=20_000)
+    register_observation(
+        client,
+        product["id"],
+        amount_minor=15_000,
+        validation_status="pending_review",
+    )
+    rule_response = client.post(
+        f"/api/products/{product['id']}/alerts",
+        json={"target_amount_minor": 18_000, "currency": "ARS"},
+    )
+    assert rule_response.status_code == 201, rule_response.text
+
+    result = client.post(f"/api/alerts/{rule_response.json()['id']}/evaluate")
+    assert result.status_code == 200, result.text
+    assert result.json() == []
