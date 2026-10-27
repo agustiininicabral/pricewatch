@@ -276,7 +276,6 @@ class AlertRuleCreate(ApiModel):
     target_amount_minor: int | None = Field(default=None, gt=0, strict=True)
     currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
     minimum_reduction_basis_points: int | None = Field(default=None, ge=1, le=10000, strict=True)
-    notification_interval_hours: int = Field(default=24, ge=0, le=8760, strict=True)
     variant_key: str | None = Field(default=None, min_length=1, max_length=160)
 
     @model_validator(mode="after")

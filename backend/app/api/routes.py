@@ -643,7 +643,7 @@ def create_alert_rule(
         target_amount_minor=payload.target_amount_minor,
         currency=payload.currency,
         minimum_reduction_basis_points=payload.minimum_reduction_basis_points,
-        notification_interval_hours=payload.notification_interval_hours,
+        notification_interval_hours=24,
         is_enabled=True,
     )
     session.add(rule)

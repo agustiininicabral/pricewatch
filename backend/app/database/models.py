@@ -207,8 +207,7 @@ class AlertRule(Base):
     __table_args__ = (
         CheckConstraint("target_amount_minor IS NULL OR target_amount_minor > 0", name="target_amount"),
         CheckConstraint(
-            "(target_amount_minor IS NULL AND currency IS NULL) OR "
-            "(target_amount_minor IS NOT NULL AND currency IS NOT NULL)",
+            "target_amount_minor IS NULL OR currency IS NOT NULL",
             name="target_currency_consistency",
         ),
         CheckConstraint(
