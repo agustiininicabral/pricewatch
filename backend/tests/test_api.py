@@ -607,3 +607,63 @@ def test_alert_rule_ignores_latest_observation_pending_review(client: TestClient
     result = client.post(f"/api/alerts/{rule_response.json()['id']}/evaluate")
     assert result.status_code == 200, result.text
     assert result.json() == []
+
+
+def test_alert_target_triggers_at_exact_price_and_ignores_other_currency(
+    client: TestClient,
+) -> None:
+    product = create_product(client)
+    register_observation(
+        client,
+        product["id"],
+        amount_minor=20_000,
+        currency="ARS",
+    )
+    register_observation(
+        client,
+        product["id"],
+        store_slug="tienda-usd",
+        store_domain="tienda-usd.example.test",
+        source_url="https://tienda-usd.example.test/camara",
+        amount_minor=1_000,
+        currency="USD",
+    )
+    rule_response = client.post(
+        f"/api/products/{product['id']}/alerts",
+        json={"target_amount_minor": 20_000, "currency": "ARS"},
+    )
+    assert rule_response.status_code == 201, rule_response.text
+
+    result = client.post(f"/api/alerts/{rule_response.json()['id']}/evaluate")
+    assert result.status_code == 200, result.text
+    assert len(result.json()) == 1
+    event = result.json()[0]
+    assert event["event_type"] == "target_reached"
+    assert event["payload"]["amount_minor"] == 20_000
+    assert event["payload"]["currency"] == "ARS"
+
+
+def test_alert_reduction_threshold_uses_basis_points_exactly(
+    client: TestClient,
+) -> None:
+    product = create_product(client)
+    register_observation(client, product["id"], amount_minor=20_000)
+    register_observation(client, product["id"], amount_minor=19_000)
+    rule_response = client.post(
+        f"/api/products/{product['id']}/alerts",
+        json={"minimum_reduction_basis_points": 500, "currency": "ARS"},
+    )
+    assert rule_response.status_code == 201, rule_response.text
+
+    result = client.post(f"/api/alerts/{rule_response.json()['id']}/evaluate")
+    assert result.status_code == 200, result.text
+    assert len(result.json()) == 1
+    event = result.json()[0]
+    assert event["event_type"] == "price_reduction"
+    assert event["payload"]["reduction_basis_points"] == 500
+    assert event["payload"]["minimum_reduction_basis_points"] == 500
+
+
+def test_alert_events_returns_not_found_for_unknown_rule(client: TestClient) -> None:
+    response = client.get("/api/alerts/999/events")
+    assert response.status_code == 404
