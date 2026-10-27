@@ -9,7 +9,7 @@ PriceWatch es una aplicación local para organizar productos y publicaciones, re
 - Sin adaptadores, una actualización manual termina informando `AdapterNotReadyError`. No cambia ni borra la última observación válida.
 - El planificador espera 24 horas antes de su primer ciclo por defecto y no realiza consultas a tiendas sin adaptador registrado.
 - El adaptador HTML existente es únicamente para fixtures locales controlados, no para consultar tiendas reales.
-- **Las alertas no son funcionales:** existen modelos de datos, pero no hay gestión de reglas, evaluación ni notificaciones disponibles en la aplicación.
+- **Alertas de precio disponibles con alcance limitado:** se pueden crear y listar reglas desde la interfaz, evaluarlas manualmente contra observaciones guardadas y consultar eventos pendientes. No se envían correos ni mensajes, no hay evaluación programada y no se consultan tiendas automáticamente.
 - No hay scraping general, compras ni pagos automáticos. Los precios que se comparan deben registrarse manualmente; la aplicación no los verifica con una tienda.
 
 ## Requisitos
