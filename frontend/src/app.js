@@ -483,6 +483,31 @@ function historyChart(history, listing) {
   </svg></div>`;
 }
 
+function renderAlertRules(rules, eventsByRule) {
+  if (!rules.length) {
+    return `<p class="chart-empty">Todavía no hay reglas. Crea una para evaluar las próximas observaciones guardadas.</p>`;
+  }
+  return rules.map((rule) => {
+    const conditions = [];
+    if (rule.target_amount_minor !== null) conditions.push(`precio ≤ ${escapeHtml(formatMoney(rule.target_amount_minor, rule.currency))}`);
+    if (rule.minimum_reduction_basis_points !== null) conditions.push(`reducción ≥ ${(rule.minimum_reduction_basis_points / 100).toLocaleString("es-AR")}%`);
+    const events = eventsByRule.get(rule.id) || [];
+    return `<article class="alert-rule-card">
+      <div class="alert-rule-heading">
+        <div><strong>Regla #${rule.id}</strong><p class="muted">${conditions.join(" · ")} · ${escapeHtml(rule.currency)}</p></div>
+        ${statusPill(rule.is_enabled ? "pending" : "invalid", rule.is_enabled ? "Activa" : "Deshabilitada")}
+      </div>
+      <button class="button button-quiet button-small" type="button" data-action="evaluate-alert" data-rule-id="${rule.id}">Evaluar ahora</button>
+      <p class="field-help">Usa precios guardados; no consulta tiendas ni envía mensajes.</p>
+      ${events.length ? `<ul class="alert-event-list">${events.map((item) => {
+        const title = item.event_type === "target_reached" ? "Precio objetivo alcanzado" : "Reducción de precio detectada";
+        const amount = item.payload.amount_minor !== undefined ? formatMoney(item.payload.amount_minor, item.payload.currency || rule.currency) : "Importe no disponible";
+        return `<li><span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(amount)} · ${escapeHtml(formatDate(item.triggered_at))}</small></span>${statusPill(item.state)}</li>`;
+      }).join("")}</ul>` : `<p class="muted">Sin eventos registrados.</p>`}
+    </article>`;
+  }).join("");
+}
+
 async function showProductDetail(product) {
   state.selectedProductId = product.id;
   elements.detailPanel.hidden = false;
@@ -492,11 +517,17 @@ async function showProductDetail(product) {
   elements.detailContent.innerHTML = "";
   elements.detailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
   try {
-    const [listings, history, comparison] = await Promise.all([
+    const [listings, history, comparison, alertRules] = await Promise.all([
       api.listListings(product.id),
       api.history(product.id),
       api.comparison(product.id),
+      api.listAlertRules(product.id),
     ]);
+    const eventEntries = await Promise.all(alertRules.map(async (rule) => [
+      rule.id,
+      await api.listAlertEvents(rule.id),
+    ]));
+    const eventsByRule = new Map(eventEntries);
     const latestExecution = state.summaries.get(product.id)?.execution;
     const executionNotice = latestExecution && ["failed", "partial"].includes(latestExecution.status)
       ? `<div class="message">La última actualización terminó ${escapeHtml(statusLabels[latestExecution.status] || latestExecution.status)}. ${escapeHtml(latestExecution.errors.join("; ") || "Revisá la disponibilidad de la integración.")} No se reemplazó la última observación válida; su fecha indica cuándo fue obtenida.</div>`
@@ -508,6 +539,24 @@ async function showProductDetail(product) {
       </section>
       <section class="detail-section"><h3>Comparación de ofertas verificadas</h3>
         ${renderComparison(comparison)}
+      </section>
+      <section class="detail-section alert-section"><h3>Alertas de precio</h3>
+        <p class="muted">Las reglas se evalúan contra observaciones guardadas y válidas. Los eventos quedan pendientes; no se envían notificaciones.</p>
+        <form class="alert-rule-form" data-action="create-alert-rule" data-product-id="${product.id}">
+          <div class="alert-rule-fields">
+            <label>Precio objetivo <span class="optional">(opcional)</span>
+              <input name="target_amount" inputmode="decimal" placeholder="Ej.: 20000" autocomplete="off">
+            </label>
+            <label>Reducción mínima (%) <span class="optional">(opcional)</span>
+              <input name="minimum_reduction_percent" type="number" min="0.01" max="100" step="0.01" placeholder="Ej.: 5">
+            </label>
+            <label>Moneda
+              <select name="currency"><option value="ARS">ARS</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="BRL">BRL</option></select>
+            </label>
+          </div>
+          <button class="button button-primary" type="submit">Crear regla</button>
+        </form>
+        <div class="alert-rules-list">${renderAlertRules(alertRules, eventsByRule)}</div>
       </section>
       <section class="detail-section"><h3>Historial de precios</h3>
         ${listings.map((listing) => `<div class="detail-section">
@@ -649,9 +698,28 @@ function bindEvents() {
     }
   });
 
-  elements.detailContent.addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-action='update-listing']");
-    if (button) updateProduct(state.selectedProductId, Number(button.dataset.listingId), button);
+  elements.detailContent.addEventListener("click", async (event) => {
+    const updateButton = event.target.closest("button[data-action='update-listing']");
+    if (updateButton) {
+      updateProduct(state.selectedProductId, Number(updateButton.dataset.listingId), updateButton);
+      return;
+    }
+    const alertButton = event.target.closest("button[data-action='evaluate-alert']");
+    if (!alertButton) return;
+    alertButton.disabled = true;
+    try {
+      const created = await api.evaluateAlert(Number(alertButton.dataset.ruleId));
+      showGlobalMessage(
+        created.length ? `Se registraron ${created.length} evento(s) pendiente(s).` : "La evaluación terminó sin nuevos eventos.",
+        "success",
+      );
+      const product = state.products.find((item) => item.id === state.selectedProductId);
+      if (product) await showProductDetail(product);
+    } catch (error) {
+      showGlobalError(error);
+    } finally {
+      alertButton.disabled = false;
+    }
   });
   elements.detailContent.addEventListener("change", (event) => {
     if (event.target.matches("select[name='shipping_status']")) {
@@ -674,7 +742,23 @@ function bindEvents() {
       const values = new FormData(form);
       const productId = Number(form.dataset.productId);
       const listingId = Number(form.dataset.listingId);
-      if (form.dataset.action === "manual-observation") {
+      if (form.dataset.action === "create-alert-rule") {
+        const targetText = values.get("target_amount").trim();
+        const reductionText = values.get("minimum_reduction_percent").trim();
+        if (!targetText && !reductionText) throw new Error("Ingresá un precio objetivo, una reducción mínima o ambos.");
+        const currency = values.get("currency");
+        if (reductionText && (!Number.isFinite(Number(reductionText))
+          || Number(reductionText) < 0.01 || Number(reductionText) > 100
+          || !/^\d+(?:[.,]\d{1,2})?$/.test(reductionText))) {
+          throw new Error("La reducción debe estar entre 0,01 % y 100 %, con hasta dos decimales.");
+        }
+        await api.createAlertRule(Number(form.dataset.productId), {
+          currency,
+          target_amount_minor: targetText ? amountToMinorUnits(targetText, currency) : null,
+          minimum_reduction_basis_points: reductionText ? Math.round(Number(reductionText.replace(",", ".")) * 100) : null,
+        });
+        showGlobalMessage("Regla creada. Puedes evaluarla contra los precios guardados.", "success");
+      } else if (form.dataset.action === "manual-observation") {
         const listing = state.summaries.get(productId)?.listings
           .find((item) => item.id === listingId);
         if (!listing) throw new Error("No se encontró la publicación seleccionada.");
@@ -720,6 +804,10 @@ function bindEvents() {
         showGlobalMessage("Costo de envío guardado.", "success");
       }
       await loadDashboard();
+      if (form.dataset.action === "create-alert-rule") {
+        const product = state.products.find((item) => item.id === Number(form.dataset.productId));
+        if (product) await showProductDetail(product);
+      }
     } catch (error) {
       showGlobalError(error);
     } finally {
