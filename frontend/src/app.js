@@ -749,7 +749,7 @@ function bindEvents() {
         const currency = values.get("currency");
         if (reductionText && (!Number.isFinite(Number(reductionText))
           || Number(reductionText) < 0.01 || Number(reductionText) > 100
-          || !/^\\d+(?:[.,]\\d{1,2})?$/.test(reductionText))) {
+          || !/^\d+(?:[.,]\d{1,2})?$/.test(reductionText))) {
           throw new Error("La reducción debe estar entre 0,01 % y 100 %, con hasta dos decimales.");
         }
         await api.createAlertRule(Number(form.dataset.productId), {
