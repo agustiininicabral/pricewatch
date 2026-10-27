@@ -154,3 +154,5 @@ PriceWatch permite crear reglas por producto con un precio objetivo y/o una redu
 Para reglas de reducción, envía `{"minimum_reduction_basis_points":500,"currency":"ARS"}`; 500 puntos básicos equivalen a una reducción del 5 %. Se puede combinar con un precio objetivo. La clave de deduplicación impide crear el mismo evento más de una vez para una regla, observación y tipo de alerta.
 
 **Alcance actual:** los eventos quedan pendientes para revisión; no hay envío de correo, push ni mensajería. La evaluación es manual mediante API, no un proceso programado. Los importes están expresados en unidades menores de la moneda, igual que el resto de la API.
+
+La interfaz web permite crear reglas de precio objetivo o reducción mínima desde el detalle del producto y evaluarlas manualmente contra observaciones guardadas. Los eventos quedan pendientes; no se envían notificaciones.

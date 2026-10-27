@@ -186,3 +186,30 @@ test("request client surfaces connection errors as a local API error", async () 
     globalThis.fetch = originalFetch;
   }
 });
+
+
+test("alert API client exposes rule creation, evaluation, and event listing", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return jsonResponse([], 200);
+  };
+  try {
+    await api.listAlertRules(5);
+    await api.createAlertRule(5, { target_amount_minor: 20_000, currency: "ARS" });
+    await api.evaluateAlert(8);
+    await api.listAlertEvents(8);
+    assert.deepEqual(requests.map((item) => item.url), [
+      "/api/products/5/alerts",
+      "/api/products/5/alerts",
+      "/api/alerts/8/evaluate",
+      "/api/alerts/8/events",
+    ]);
+    assert.equal(requests[1].options.method, "POST");
+    assert.deepEqual(JSON.parse(requests[1].options.body), { target_amount_minor: 20_000, currency: "ARS" });
+    assert.equal(requests[2].options.method, "POST");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

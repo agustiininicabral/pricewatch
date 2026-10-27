@@ -57,6 +57,12 @@ export const api = {
     return requestJson(`/products/${productId}/history${query}`);
   },
   comparison: (productId) => requestJson(`/products/${productId}/comparison`),
+  listAlertRules: (productId) => requestJson(`/products/${productId}/alerts`),
+  createAlertRule: (productId, rule) =>
+    requestJson(`/products/${productId}/alerts`, jsonBody("POST", rule)),
+  listAlertEvents: (ruleId) => requestJson(`/alerts/${ruleId}/events`),
+  evaluateAlert: (ruleId) =>
+    requestJson(`/alerts/${ruleId}/evaluate`, { method: "POST" }),
   latestExecution: (productId) => {
     const query = productId ? `?product_id=${encodeURIComponent(productId)}` : "";
     return requestJson(`/executions/latest${query}`);
