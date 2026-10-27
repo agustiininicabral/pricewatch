@@ -715,7 +715,7 @@ def evaluate_alert_rule(
     session.commit()
     for event in events:
         session.refresh(event)
-    return [_response_alert_event(event) for event in events)
+    return [_response_alert_event(event) for event in events]
 
 
 @router.get(
