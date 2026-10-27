@@ -248,6 +248,7 @@ class AlertRule(Base):
     )
 
     product: Mapped[Product] = relationship(back_populates="alert_rules")
+    variant: Mapped[ProductVariant | None] = relationship()
     events: Mapped[list[AlertEvent]] = relationship(
         back_populates="rule", cascade="all, delete-orphan"
     )

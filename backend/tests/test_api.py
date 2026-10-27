@@ -525,3 +525,65 @@ def test_manual_product_update_requires_enabled_publication(
 def test_execution_status_returns_404_for_unknown_run(client: TestClient) -> None:
     assert client.get("/api/executions/555").status_code == 404
     assert client.get("/api/executions/latest").status_code == 404
+
+def test_alert_rule_triggers_once_when_target_price_is_reached(client: TestClient) -> None:
+    product = create_product(client)
+    register_observation(client, product["id"], amount_minor=19_000)
+    rule_response = client.post(
+        f"/api/products/{product['id']}/alerts",
+        json={"target_amount_minor": 20_000, "currency": "ARS"},
+    )
+    assert rule_response.status_code == 201, rule_response.text
+    rule = rule_response.json()
+    first = client.post(f"/api/alerts/{rule['id']}/evaluate")
+    assert first.status_code == 200, first.text
+    assert len(first.json()) == 1
+    assert first.json()[0]["event_type"] == "target_reached"
+    assert first.json()[0]["state"] == "pending"
+    assert first.json()[0]["payload"]["amount_minor"] == 19_000
+    repeated = client.post(f"/api/alerts/{rule['id']}/evaluate")
+    assert repeated.status_code == 200
+    assert repeated.json() == []
+    assert len(client.get(f"/api/alerts/{rule['id']}/events").json()) == 1
+
+
+def test_alert_rule_triggers_on_reduction_and_ignores_invalid_observations(
+    client: TestClient,
+) -> None:
+    product = create_product(client)
+    register_observation(client, product["id"], amount_minor=20_000)
+    register_observation(client, product["id"], amount_minor=18_000)
+    rule_response = client.post(
+        f"/api/products/{product['id']}/alerts",
+        json={"minimum_reduction_basis_points": 500, "currency": "ARS"},
+    )
+    assert rule_response.status_code == 201, rule_response.text
+    result = client.post(f"/api/alerts/{rule_response.json()['id']}/evaluate")
+    assert result.status_code == 200, result.text
+    assert len(result.json()) == 1
+    event = result.json()[0]
+    assert event["event_type"] == "price_reduction"
+    assert event["payload"]["previous_amount_minor"] == 20_000
+    assert event["payload"]["amount_minor"] == 18_000
+    assert event["payload"]["reduction_basis_points"] == 1000
+
+
+def test_alert_rule_validates_configuration_and_missing_resources(
+    client: TestClient,
+) -> None:
+    product = create_product(client)
+    assert client.post(
+        f"/api/products/{product['id']}/alerts",
+        json={"currency": "ARS"},
+    ).status_code == 422
+    assert client.post(
+        f"/api/products/{product['id']}/alerts",
+        json={"target_amount_minor": 100, "currency": "ars"},
+    ).status_code == 422
+    assert client.post(
+        "/api/products/999/alerts",
+        json={"target_amount_minor": 100, "currency": "ARS"},
+    ).status_code == 404
+    assert client.post("/api/alerts/999/evaluate").status_code == 404
+
+

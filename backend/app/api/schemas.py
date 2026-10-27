@@ -271,6 +271,45 @@ class ComparisonResponse(ApiModel):
     summary: str
 
 
+
+class AlertRuleCreate(ApiModel):
+    target_amount_minor: int | None = Field(default=None, gt=0, strict=True)
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    minimum_reduction_basis_points: int | None = Field(default=None, ge=1, le=10000, strict=True)
+    notification_interval_hours: int = Field(default=24, ge=0, le=8760, strict=True)
+    variant_key: str | None = Field(default=None, min_length=1, max_length=160)
+
+    @model_validator(mode="after")
+    def require_a_supported_trigger(self) -> AlertRuleCreate:
+        if self.target_amount_minor is None and self.minimum_reduction_basis_points is None:
+            raise ValueError("Configura un precio objetivo o una reducción mínima.")
+        if self.currency is None:
+            raise ValueError("La moneda es obligatoria para evaluar alertas de precio.")
+        return self
+
+
+class AlertRuleResponse(ApiModel):
+    id: int
+    product_id: int
+    variant_key: str | None
+    target_amount_minor: int | None
+    currency: str | None
+    minimum_reduction_basis_points: int | None
+    notification_interval_hours: int
+    is_enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class AlertEventResponse(ApiModel):
+    id: int
+    rule_id: int
+    event_type: str
+    state: str
+    triggered_at: datetime
+    payload: dict[str, Any]
+
+
 class HealthResponse(ApiModel):
     status: str
     database: str
