@@ -140,3 +140,17 @@ La API y ejemplos se describen en [docs/api.md](docs/api.md). La arquitectura es
 GitHub Actions ejecuta las pruebas de backend en Windows con Python 3.12 y las pruebas de frontend con Node.js. El frontend no declara dependencias npm de ejecución, por lo que sus pruebas usan el runner integrado `node --test`.
 
 La base local, sus archivos auxiliares SQLite, `.env`, entornos virtuales, cachés y archivos de claves privadas están excluidos mediante `.gitignore`. No publiques bases de datos locales ni credenciales.
+
+
+## Alertas de precio (API local)
+
+PriceWatch permite crear reglas por producto con un precio objetivo y/o una reducción mínima respecto de la observación anterior de cada publicación. La evaluación usa únicamente observaciones ya guardadas y válidas en la misma moneda. No consulta tiendas ni envía notificaciones.
+
+1. Crea un producto y registra observaciones de prueba mediante la API.
+2. Crea una regla: `POST /api/products/{product_id}/alerts`, por ejemplo `{"target_amount_minor":20000,"currency":"ARS"}`.
+3. Ejecuta `POST /api/alerts/{rule_id}/evaluate`. Si la condición se cumple, devuelve un evento `pending`.
+4. Consulta reglas con `GET /api/products/{product_id}/alerts` y eventos con `GET /api/alerts/{rule_id}/events`.
+
+Para reglas de reducción, envía `{"minimum_reduction_basis_points":500,"currency":"ARS"}`; 500 puntos básicos equivalen a una reducción del 5 %. Se puede combinar con un precio objetivo. La clave de deduplicación impide crear el mismo evento más de una vez para una regla, observación y tipo de alerta.
+
+**Alcance actual:** los eventos quedan pendientes para revisión; no hay envío de correo, push ni mensajería. La evaluación es manual mediante API, no un proceso programado. Los importes están expresados en unidades menores de la moneda, igual que el resto de la API.

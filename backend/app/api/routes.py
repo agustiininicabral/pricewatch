@@ -16,6 +16,8 @@ from app.collectors.contracts import (
     ValidationStatus,
 )
 from app.database.models import (
+    AlertEvent,
+    AlertRule,
     ExecutionRun,
     PriceObservation,
     Product,
@@ -40,6 +42,9 @@ from app.scheduler.service import (
     UpdateCoordinatorError,
 )
 from app.api.schemas import (
+    AlertEventResponse,
+    AlertRuleCreate,
+    AlertRuleResponse,
     ComparisonGroupResponse,
     ComparisonResponse,
     DOMAIN_PATTERN,
@@ -579,6 +584,138 @@ def create_shipping_quote(
         source=quote.source,
         quoted_at=_utc(quote.quoted_at),
     )
+
+
+
+def _response_alert_rule(rule: AlertRule) -> AlertRuleResponse:
+    return AlertRuleResponse(
+        id=rule.id,
+        product_id=rule.product_id,
+        variant_key=rule.variant.variant_key if rule.variant else None,
+        target_amount_minor=rule.target_amount_minor,
+        currency=rule.currency,
+        minimum_reduction_basis_points=rule.minimum_reduction_basis_points,
+        notification_interval_hours=rule.notification_interval_hours,
+        is_enabled=rule.is_enabled,
+        created_at=_utc(rule.created_at),
+        updated_at=_utc(rule.updated_at),
+    )
+
+
+def _response_alert_event(event: AlertEvent) -> AlertEventResponse:
+    return AlertEventResponse(
+        id=event.id,
+        rule_id=event.rule_id,
+        event_type=event.event_type,
+        state=event.state,
+        triggered_at=_utc(event.triggered_at),
+        payload=event.payload,
+    )
+
+
+@router.post(
+    "/products/{product_id}/alerts",
+    response_model=AlertRuleResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["alertas"],
+)
+def create_alert_rule(
+    product_id: int,
+    payload: AlertRuleCreate,
+    session: Session = Depends(get_session),
+) -> AlertRuleResponse:
+    if session.get(Product, product_id) is None:
+        raise _not_found_product(product_id)
+    variant_id: int | None = None
+    if payload.variant_key is not None:
+        variant = session.scalar(
+            select(ProductVariant).where(
+                ProductVariant.product_id == product_id,
+                ProductVariant.variant_key == payload.variant_key,
+            )
+        )
+        if variant is None:
+            raise HTTPException(status_code=404, detail="No existe esa variante del producto.")
+        variant_id = variant.id
+    rule = AlertRule(
+        product_id=product_id,
+        variant_id=variant_id,
+        target_amount_minor=payload.target_amount_minor,
+        currency=payload.currency,
+        minimum_reduction_basis_points=payload.minimum_reduction_basis_points,
+        notification_interval_hours=24,
+        is_enabled=True,
+    )
+    session.add(rule)
+    session.commit()
+    session.refresh(rule)
+    return _response_alert_rule(rule)
+
+
+@router.get(
+    "/products/{product_id}/alerts",
+    response_model=list[AlertRuleResponse],
+    tags=["alertas"],
+)
+def list_alert_rules(
+    product_id: int,
+    session: Session = Depends(get_session),
+) -> list[AlertRuleResponse]:
+    if session.get(Product, product_id) is None:
+        raise _not_found_product(product_id)
+    rules = session.scalars(
+        select(AlertRule)
+        .options(joinedload(AlertRule.variant))
+        .where(AlertRule.product_id == product_id)
+        .order_by(AlertRule.id)
+    ).unique().all()
+    return [_response_alert_rule(rule) for rule in rules]
+
+
+@router.get(
+    "/alerts/{rule_id}/events",
+    response_model=list[AlertEventResponse],
+    tags=["alertas"],
+)
+def list_alert_events(
+    rule_id: int,
+    session: Session = Depends(get_session),
+) -> list[AlertEventResponse]:
+    if session.get(AlertRule, rule_id) is None:
+        raise HTTPException(status_code=404, detail="No existe la regla de alerta.")
+    events = session.scalars(
+        select(AlertEvent)
+        .where(AlertEvent.rule_id == rule_id)
+        .order_by(AlertEvent.triggered_at.desc(), AlertEvent.id.desc())
+    ).all()
+    return [_response_alert_event(event) for event in events]
+
+
+@router.post(
+    "/alerts/{rule_id}/evaluate",
+    response_model=list[AlertEventResponse],
+    tags=["alertas"],
+)
+def evaluate_alert_rule(
+    rule_id: int,
+    session: Session = Depends(get_session),
+) -> list[AlertEventResponse]:
+    from app.alerts.service import evaluate_rule
+
+    rule = session.scalar(
+        select(AlertRule)
+        .options(joinedload(AlertRule.variant))
+        .where(AlertRule.id == rule_id)
+    )
+    if rule is None:
+        raise HTTPException(status_code=404, detail="No existe la regla de alerta.")
+    if not rule.is_enabled:
+        raise HTTPException(status_code=409, detail="La regla de alerta está deshabilitada.")
+    events = evaluate_rule(session, rule)
+    session.commit()
+    for event in events:
+        session.refresh(event)
+    return [_response_alert_event(event) for event in events]
 
 
 @router.get(

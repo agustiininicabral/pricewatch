@@ -207,8 +207,7 @@ class AlertRule(Base):
     __table_args__ = (
         CheckConstraint("target_amount_minor IS NULL OR target_amount_minor > 0", name="target_amount"),
         CheckConstraint(
-            "(target_amount_minor IS NULL AND currency IS NULL) OR "
-            "(target_amount_minor IS NOT NULL AND currency IS NOT NULL)",
+            "target_amount_minor IS NULL OR currency IS NOT NULL",
             name="target_currency_consistency",
         ),
         CheckConstraint(
@@ -248,6 +247,7 @@ class AlertRule(Base):
     )
 
     product: Mapped[Product] = relationship(back_populates="alert_rules")
+    variant: Mapped[ProductVariant | None] = relationship()
     events: Mapped[list[AlertEvent]] = relationship(
         back_populates="rule", cascade="all, delete-orphan"
     )
